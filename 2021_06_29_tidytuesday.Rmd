@@ -1,0 +1,32 @@
+---
+title: "Tidy Tuesday 6/29/2021"
+author: "David Webber"
+date: "6/29/2021"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+animal_rescues <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-29/animal_rescues.csv')
+```
+
+
+First some basic cleaning like converting to date-time format. I'm removing the type of incident column since it is special service for each row.
+
+```{r}
+animal_rescues <- animal_rescues %>%
+  mutate(date_time_of_call = dmy_hm(date_time_of_call),
+         incident_notional_cost = strtoi(incident_notional_cost),
+         origin_of_call = originof_call) %>%
+  select(!type_of_incident)
+```
+
+```{r}
+ggplot(animal_rescues, aes(date_time_of_call, hourly_notional_cost))+
+  geom_line()
+```
+
