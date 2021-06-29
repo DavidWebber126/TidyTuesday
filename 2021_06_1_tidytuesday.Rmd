@@ -1,0 +1,57 @@
+---
+title: "2021_06_01_tidytuesday"
+author: "David Webber"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+summary <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-01/summary.csv')
+challenges <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-01/challenges.csv')
+castaways <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-01/castaways.csv')
+viewers <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-01/viewers.csv')
+jury_votes <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-01/jury_votes.csv')
+```
+
+
+```{r}
+summary %>%
+  group_by(location) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+```
+
+average viewers (in millions) for each season. This is a time series and can be modeled.
+```{r}
+ggplot(summary, aes(x = season)) +
+  geom_line(aes(y = viewers_premier), col = 2, size = 1) +
+  geom_line(aes(y = viewers_finale), col = 3, size = 1) +
+  geom_line(aes(y = viewers_reunion), col = 4, size = 1) +
+  geom_line(aes(y = viewers_mean), col = 7, size = 1) +
+  labs(x = "Season", y = "Number of Viewers (In millions)")
+```
+
+```{r}
+ggplot(viewers, aes(episode_date, viewers)) +
+  geom_point()
+```
+
+Only two people have won survivor twice: Sandra Diaz-Twine and Tony Vlachos
+```{r}
+summary %>%
+  group_by(full_name) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+```
+
+
+```{r}
+castaways %>%
+  group_by(castaway, age) %>%
+  ggplot(aes(x = age)) +
+  geom_histogram(binwidth = 4)
+```
+

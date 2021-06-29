@@ -1,0 +1,73 @@
+---
+title: "2021_5_25"
+author: "David Webber"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+records <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-05-25/records.csv')
+drivers <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-05-25/drivers.csv')
+```
+
+```{r}
+records %>%
+  group_by(player) %>%
+  summarize(count = n())
+```
+
+```{r}
+records %>%
+  filter(track == "Rainbow Road", type == "Single Lap", system_played == "PAL", shortcut == "Yes")
+  #ggplot(aes(x = date, y = time)) +
+    #geom_point()
+```
+
+How many tracks have shortcuts? 12 tracks have shortcuts on them. The ones that don't have shortcuts are Banshee Boardwalk, Bowser's Castle, Koopa Troopa Beach, Moo Moo Farm.
+
+```{r}
+shortcuts <- records %>%
+  filter(shortcut == "Yes") %>%
+  group_by(track) %>%
+  summarize(count = n())
+
+shortcut_tracks <- unique(shortcuts$track)
+
+records %>%
+  filter(!(track %in% shortcut_tracks)) %>%
+  group_by(track) %>%
+  summarize(count = n())
+
+```
+
+Which track is the fastest? Mario Raceway is the fastest track for speedrunners on average while Rainbow Road has the longest average completion time.
+
+```{r}
+records %>%
+  group_by(track) %>%
+  summarize(ave_time = mean(time)) %>%
+  arrange(ave_time)
+```
+
+Fastest times ever? Wario stadium has the fastest times of any track.
+```{r}
+records %>%
+  arrange(time)
+```
+
+```{r}
+#Function for plots
+
+wr_plot <- function(a,b,c,d) {
+  records %>%
+    filter(track == a, type == b, system_played == c, shortcut == d) %>%
+    ggplot(aes(date, time)) +
+      geom_point()
+}
+
+wr_plot("Luigi Raceway", "Single Lap", "PAL", "Yes")
+```
+

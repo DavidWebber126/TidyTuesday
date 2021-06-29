@@ -1,0 +1,48 @@
+---
+title: "Ask A Manager"
+author: "David Webber"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(scales)
+survey <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-05-18/survey.csv')
+```
+
+Most respondents were white females. Let's investigate this below
+
+```{r}
+race <- survey %>%
+  group_by(race) %>%
+  summarize(
+    count = n()
+  ) %>%
+  filter(count > 500)
+
+ggplot(data = race, aes(x = count, y = race)) +
+  geom_col()
+
+ggplot(data = survey, aes(y = gender)) +
+  geom_bar()
+```
+
+```{r}
+survey %>%
+  filter(currency == "USD") %>%
+  filter(annual_salary >= 1000,
+         annual_salary <= 1e6) %>%
+  ggplot(aes(annual_salary)) +
+  geom_histogram() +
+  scale_x_log10(labels = dollar_format())
+```
+
+```{r}
+survey1 <- survey %>%
+  mutate(timestamp = mdy_hms(timestamp))
+```
+

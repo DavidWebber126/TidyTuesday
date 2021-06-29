@@ -1,0 +1,51 @@
+---
+title: "2021_06_08 TidyTuesday"
+author: "David Webber"
+date: "6/8/2021"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(scales)
+fishing <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-08/fishing.csv')
+stocked <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-08/stocked.csv')
+
+```
+
+It looks like there are different spellings for some of the species and some have two different species. We can combine the different spellings of the same species into one species, but we can't separate combined categories so we will just remove these ones.
+
+```{r}
+fishing <- fishing %>%
+  filter(values >= 0) %>%
+  mutate(species = str_replace(str_to_title(species),"([^s])s$", "\\1")) %>%
+  mutate(species = str_replace(species, "Amercian Eel", "American Eel" )) %>%
+  filter(!(str_detect(species," And ")))
+
+species_list <- as_tibble(unique(fishing$species)) %>%
+  arrange(value)
+
+fishing %>%
+  mutate(species = fct_lump(species, 8, w = values)) %>%
+  group_by(species, year) %>%
+  summarize(total_production = sum(values)) %>%
+  ggplot(aes(year, total_production, col = species))+
+  facet_wrap(~species, nrow = 3) +
+  geom_line() +
+  scale_y_continuous(labels = comma_format()) +
+  theme(legend.position = "none") +
+  labs(x = "Year", y = "Total Production (thousands of pounds)")+
+  theme_light()
+
+fishing %>%
+  group_by(species, year) %>%
+  filter(species == "Pacific Salmon") %>%
+  summarize(total_production = sum(values)) %>%
+  ggplot(aes(year, total_production))+
+  geom_line()+
+  geom_point()
+```
+

@@ -1,0 +1,91 @@
+---
+title: "TidyTuesday 6/14/2021"
+author: "David Webber"
+date: "6/14/2021"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+tweets <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-15/tweets.csv')
+```
+
+```{r}
+tweets <- tweets %>%
+  filter(!is.na(verified))
+  
+tweets %>%
+  filter(followers < 20000) %>%
+  ggplot(aes(followers, like_count))+
+  geom_point()
+
+tweets %>%
+  filter(followers < 20000) %>%
+  ggplot(aes(followers, retweet_count))+
+  geom_point()
+
+tweets %>%
+  mutate(date = as.Date(datetime))%>%
+  group_by(date) %>%
+  summarize(count = n()) %>%
+  ggplot(aes(date, count))+
+  geom_line(lwd = 1)+
+  theme_light()+
+  labs(x = "Date", y = "Tweets",title = "W.E.B DuBois Challenge on Twitter over Time")
+  
+tweets %>%
+  group_by(username) %>%
+  summarize(followers = first(followers)) %>%
+  mutate(username = fct_lump(username, 10, w = followers)) %>%
+  filter(username != "Other") %>%
+  ggplot(aes(followers, reorder(username, followers))) +
+  geom_col() +
+  theme_light()+
+  labs(x = "Followers", y = "Twitter Username", title = "Top 10 Users with the most Followers")
+```
+
+```{r}
+linear_fit <- lm(retweet_count~like_count, data = tweets)
+summary(linear_fit)
+ggplot(tweets, aes(like_count, retweet_count))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  theme_light()
+
+par(mfrow = c(2,2))
+plot(linear_fit)
+```
+
+```{r}
+tweets %>%
+  mutate(numCharInTweet = nchar(content)) %>%
+  ggplot(aes(numCharInTweet, like_count))+
+  geom_point()
+```
+
+```{r}
+world <- ne_countries(scale = "medium", returnclass = "sf")
+ggplot(data = world)+
+  geom_sf()+
+  labs(x = "Longitude", y = "Latitude", title = "World Map")+
+  theme_bw()
+```
+
+```{r}
+tweets_links <- tweets %>%
+  mutate(containsLink = str_detect(content, "https:[^\\s]+"),
+         link = str_extract_all(content, "https:[^\\s]+")) %>%
+  select(containsLink, link, username)
+
+test<-tweets %>%
+  mutate(device = str_extract(text,"android|iphone|Web App|ipad|buffer|tweetdeck|Crowdfire App|Mac")) %>%
+  select(device, username)
+```
+

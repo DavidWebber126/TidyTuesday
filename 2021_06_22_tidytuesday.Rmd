@@ -1,0 +1,93 @@
+---
+title: "Tidy Tuesday 6/21/2021"
+author: "David Webber"
+date: "6/21/2021"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(lubridate)
+parks <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-06-22/parks.csv')
+```
+
+Some data cleaning needs to be done. In particular we want to remove the percent signs and just represent with a number between 0 and 100. Also remove dollar sign, take out redundant city name column, and fix the Washington D.C. and Washington DC mix up.
+
+```{r}
+parks <- parks %>%
+  mutate(
+    park_pct_city_data = strtoi(str_remove(park_pct_city_data,"%")),
+    pct_near_park_data = strtoi(str_remove(pct_near_park_data,"%")),
+    spend_per_resident_data = strtoi(str_remove(spend_per_resident_data,"\\$")),
+    year = as.factor(year)
+  )
+parks <- parks[,-27]
+
+parks <- parks %>%
+  mutate(city = str_replace(city, "DC", "D.C."))
+```
+
+It seems like total points is the sum of the points for median park size, percent of parkland of city area, percent of residents within 10 minute walking distance, spending per resident and amenities. The total percent is then just the total points divided by total points possible (in the case of 2020 is 400).
+
+What is unclear to me is how the data for each measurement is converted into points. There seems to be a linear relation between the data and the points but then it flattens out. Never mind how amenities points are calculated.
+
+
+```{r}
+parks2020 <- parks %>%
+  filter(year == "2020")
+
+total_pct_fit <- lm(total_pct~amenities_points+spend_per_resident_points+pct_near_park_points+park_pct_city_points+med_park_size_points, data = parks2020)
+summary(total_pct_fit)
+
+```
+
+From the above its clear that the the total points is a linear combination of the other metrics, so it is not really new information. We use PCA and see that about 93% of the variability can be explained by the first principle component. This likely means a given park either does really well on most of the metrics or it does poorly on most of the metrics.
+
+```{r}
+parks_data2020 <- parks2020 %>%
+  select(med_park_size_data, park_pct_city_data, pct_near_park_data, spend_per_resident_data, basketball_data, dogpark_data, playground_data, rec_sr_data, restroom_data, splashground_data)
+
+pr.out <- prcomp(parks_data2020)
+pr.var = pr.out$sdev^2
+pve = pr.var/sum(pr.var)
+plot(cumsum(pve), ylim = c(0,1))
+pr.out$rotation
+```
+
+
+It could be nice to know which cities have the top park scores year after year. San Francisco and Portland have appeared in the top 10 each year.
+
+```{r}
+parks %>%
+  filter(rank %in% 1:10) %>%
+  group_by(city) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  ggplot(aes(count,reorder(city, count)))+
+  geom_col() +
+  theme_light()+
+  scale_x_continuous(breaks = c(1,3,5,7,9))+
+  labs(x="Number of times in Top 10 Parks", y="City", title = "Most Frequent Cities in Top Ten Parks")
+
+```
+
+
+A burning question I still have is which of the metrics do parks perform well on and which do they can improve on. We need the points given rather than the raw scores, since points are comparable across metrics while raw scores are not. Not all the metrics are out of the same number of points, for example median parks size is out of 50 points while spending per resident is out of 100 points. Luckily there is at least one park that has the maximum score for each category, so we can just divide each column by the maximum points found in that column (which converts each point score to a percentage). It seems that most metrics are a little over 50% so an average park scores over half of the available points. Noticeably the median parks size and park percentage of city are below 30%, meaning that most cities get low scores in these categories.
+
+```{r}
+parks_points2020 <- parks2020 %>%
+  select(med_park_size_points, park_pct_city_points, pct_near_park_points, spend_per_resident_points, basketball_points, dogpark_points, playground_points, rec_sr_points, restroom_points, splashground_points)
+
+parks_points2020 <- parks_points2020/apply(parks_points2020, 2, max)
+mean_points <- tibble(apply(parks_points2020, 2, mean))
+mean_points <- rename(mean_points, mean = "apply(parks_points2020, 2, mean)")
+mean_points <- mutate(mean_points, metric = names(parks_points2020))
+ggplot(mean_points, aes(mean, reorder(metric, mean)))+
+  geom_col()+
+  xlim(0,1)
+```
+
