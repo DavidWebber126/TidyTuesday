@@ -1,0 +1,40 @@
+---
+title: "TidyTuesday 7/20/2021"
+author: "David Webber"
+date: "7/20/2021"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+drought <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-20/drought.csv')
+
+```
+
+
+```{r}
+drought <- drought %>%
+  select(-map_date) %>%
+  rename(start = valid_start, end = valid_end) %>%
+  
+
+drought_CA <- drought %>%
+  filter(state_abb == "CA")
+```
+
+
+```{r}
+drought_CA %>%
+  filter(drought_lvl != "None") %>%
+  ggplot(aes(start, area_pct, col = drought_lvl))+
+  geom_col()
+
+drought_CA %>%
+  filter(drought_lvl == "None") %>%
+  ggplot(aes(start, area_pct))+
+  geom_col()
+```
+
