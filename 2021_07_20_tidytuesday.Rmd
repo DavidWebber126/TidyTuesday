@@ -11,8 +11,8 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(smoother)
+library(geofacet)
 drought <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-20/drought.csv')
-
 ```
 
 Some data clean up. I remove map_date since it is redundant with valid_start. I also prefer start and end instead of valid_start and valid_end respectively.
@@ -21,7 +21,6 @@ Some data clean up. I remove map_date since it is redundant with valid_start. I 
 drought <- drought %>%
   select(-map_date) %>%
   rename(start = valid_start, end = valid_end)
-
 ```
 
 One thing I've noticed is that some values of area_total and pop_total are missing, but only at the D4 drought level. Curiously, the area_pct and pop_pct is still available so we can easily fill in the missing information. Note that area_pct and pop_pct only store two points after the decimal, so the actual value is slightly different (but not too far off).
@@ -62,24 +61,38 @@ drought_CA <- drought %>%
   arrange(start)
 
 drought_CA %>%
-  filter(drought_lvl != "None", drought_lvl != "D0") %>%
-  ggplot(aes(start, area_pct, col = drought_lvl))+
+  filter(drought_lvl != "None") %>%
+  ggplot(aes(start, area_pct, col = drought_lvl, fill = drought_lvl))+
   geom_col() +
-  xlab("Drought Start Date")+
-  ylab("Percentage of State Affected")
+  scale_color_brewer(palette = "OrRd")+
+  scale_fill_brewer(palette = "OrRd")+
+  xlab("Date")+
+  ylab("Percent of State Affected")+
+  labs(title = "Droughts In California")+
+  theme_light()
 
-drought_CA %>%
-  filter(drought_lvl == "D0") %>%
-  ggplot(aes(start, area_pct))+
-  geom_line(col = "blue", lwd=1)
+library(geofacet)
+drought %>%
+  filter(drought_lvl != "None", state_abb != "PR") %>%
+  ggplot(aes(start, area_pct, col = drought_lvl, fill = drought_lvl))+
+  geom_col()+
+  scale_color_brewer(palette = "OrRd")+
+  scale_fill_brewer(palette = "OrRd")+
+  facet_geo(~state_abb, grid = "us_state_grid1")+
+  scale_x_continuous(breaks = c(2005, 2010, 2015, 2020))+
+  scale_y_continuous(breaks = c(0, 100))+
+  labs(x = "Date", y = "Percent of State Affected", title = "Droughts Across the US")+
+  theme_light()
 ```
 
-From looking at the plots I thought that there might be some periodic component to California droughts. I decided to smooth the data using a gaussian smoother then analyze the frequencies using the fast fourier transform.
+From looking at the California plot, I thought that there might be some periodic component to California droughts. I decided to smooth the data using a gaussian smoother then analyze the frequencies using the fast fourier transform.
 ```{r}
 library(smoother)
 smoothed_drought <- drought_CA %>%
-  filter(drought_lvl == "D0") %>%
-  mutate(smoothed = smth.gaussian(area_pct))
+  filter(drought_lvl != "None") %>%
+  group_by(start) %>%
+  summarize(area_pct_total = sum(area_pct)) %>%
+  mutate(smoothed = smth.gaussian(area_pct_total))
 
 smoothed_drought <- na.omit(smoothed_drought)
 
@@ -95,6 +108,5 @@ plot(Fr, P, type ="o",xlab = "Frequency", ylab = "Scaled Periodogram")
 plot(Fr[2:470], P[2:470], type = "o", xlab = "Frequency", ylab = "Scaled Periodogram")
 ```
 
-I'm not entirely sure what is happening at the first point and why it is so large, but there is a clear peak at the fourth point (it is easier to see in the second plot where it is the third point) which corresponds to a frequency of 0.00319 cycles per week. This gives a period of about 6 years which is close to what I observe in the plot (though I would say it is closer to 5 years). 
-
+I'm not entirely sure what is happening at the first point and why it is so large, but there is a peak at the fourth point which corresponds to a frequency of 0.00319 cycles per week. This gives a period of about 6 years which is close to what I observe in the plot (though I would say it is closer to 5 years).
 
