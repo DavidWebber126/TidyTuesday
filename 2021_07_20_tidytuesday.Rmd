@@ -10,31 +10,91 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(smoother)
 drought <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-07-20/drought.csv')
 
 ```
 
+Some data clean up. I remove map_date since it is redundant with valid_start. I also prefer start and end instead of valid_start and valid_end respectively.
 
 ```{r}
 drought <- drought %>%
   select(-map_date) %>%
-  rename(start = valid_start, end = valid_end) %>%
-  
+  rename(start = valid_start, end = valid_end)
 
-drought_CA <- drought %>%
-  filter(state_abb == "CA")
 ```
 
+One thing I've noticed is that some values of area_total and pop_total are missing, but only at the D4 drought level. Curiously, the area_pct and pop_pct is still available so we can easily fill in the missing information. Note that area_pct and pop_pct only store two points after the decimal, so the actual value is slightly different (but not too far off).
 
 ```{r}
-drought_CA %>%
-  filter(drought_lvl != "None") %>%
-  ggplot(aes(start, area_pct, col = drought_lvl))+
-  geom_col()
+drought <- drought %>%
+  mutate(area_total = case_when(is.na(area_total) ~ lag(area_total, 4)*area_pct/100,
+                                TRUE ~ area_total),
+         pop_total = case_when(is.na(pop_total) ~ lag(pop_total, 4)*pop_pct/100,
+                               TRUE ~ pop_total))
+```
+
+This dataset stores area_pct, area_total, pop_pct and pop_total cumulatively according to the drought level. For example, the area_pct corresponding to a row with a drought level of D2 also includes the area that are at drought levels D3 and D4 (but not at D1 or D0). This is kinda confusing so it is easier to take differences to find the exact percent or total at each drought level (Thanks to Prof Hardin for going over this during our TidyTuesday chat!)
+
+```{r}
+drought <- drought %>%
+  group_by(state_abb, start) %>%
+  mutate(drought_lvl = factor(drought_lvl, levels = c("None","D0","D1","D2","D3","D4")),
+         area_pct = case_when(drought_lvl == "None" ~ area_pct,
+                              is.na(lead(area_pct)) ~ area_pct,
+                              TRUE ~ area_pct - lead(area_pct)),
+         area_total = case_when(drought_lvl == "None" ~ area_total,
+                                is.na(lead(area_total)) ~ area_total,
+                                TRUE ~ area_total - lead(area_total)),
+         pop_pct = case_when(drought_lvl == "None" ~ pop_pct,
+                             is.na(lead(pop_pct)) ~ pop_pct,
+                             TRUE ~ pop_pct - lead(pop_pct)),
+         pop_total = case_when(drought_lvl == "None" ~ pop_total,
+                             is.na(lead(pop_total)) ~ pop_total,
+                             TRUE ~ pop_total - lead(pop_total)))
+```
+
+
+Now we can plot the different drought levels over time.
+```{r}
+drought_CA <- drought %>%
+  filter(state_abb == "CA") %>%
+  arrange(start)
 
 drought_CA %>%
-  filter(drought_lvl == "None") %>%
+  filter(drought_lvl != "None", drought_lvl != "D0") %>%
+  ggplot(aes(start, area_pct, col = drought_lvl))+
+  geom_col() +
+  xlab("Drought Start Date")+
+  ylab("Percentage of State Affected")
+
+drought_CA %>%
+  filter(drought_lvl == "D0") %>%
   ggplot(aes(start, area_pct))+
-  geom_col()
+  geom_line(col = "blue", lwd=1)
 ```
+
+From looking at the plots I thought that there might be some periodic component to California droughts. I decided to smooth the data using a gaussian smoother then analyze the frequencies using the fast fourier transform.
+```{r}
+library(smoother)
+smoothed_drought <- drought_CA %>%
+  filter(drought_lvl == "D0") %>%
+  mutate(smoothed = smth.gaussian(area_pct))
+
+smoothed_drought <- na.omit(smoothed_drought)
+
+smoothed_drought %>%
+  ggplot(aes(start, smoothed))+
+  geom_line(col = "red", lwd=1)
+```
+
+```{r}
+P <- Mod(2*fft(smoothed_drought$smoothed))^2/length(smoothed_drought$smoothed)
+Fr <- 0:(length(smoothed_drought$smoothed)-1)/length(smoothed_drought$smoothed)
+plot(Fr, P, type ="o",xlab = "Frequency", ylab = "Scaled Periodogram")
+plot(Fr[2:470], P[2:470], type = "o", xlab = "Frequency", ylab = "Scaled Periodogram")
+```
+
+I'm not entirely sure what is happening at the first point and why it is so large, but there is a clear peak at the fourth point (it is easier to see in the second plot where it is the third point) which corresponds to a frequency of 0.00319 cycles per week. This gives a period of about 6 years which is close to what I observe in the plot (though I would say it is closer to 5 years). 
+
 
